@@ -1,0 +1,29 @@
+ARG PAYARA_TAG
+FROM payara/micro:$PAYARA_TAG as build
+
+FROM gcr.io/distroless/java:11
+LABEL maintainer="qaware-oss@qaware.de"
+
+ENV PAYARA_PATH /opt/payara
+ENV DEPLOY_DIR $PAYARA_PATH/deployments
+ENV AUTODEPLOY_DIR $PAYARA_PATH/deployments
+
+COPY --from=amd64/busybox:1.34.0 /bin/busybox /busybox/busybox
+RUN ["/busybox/busybox", "--install", "/bin"]
+
+ENV ENV="/etc/profile"
+COPY etc_profile /etc/profile
+
+COPY --from=build /etc/passwd /etc/passwd
+COPY --from=build /etc/group /etc/group
+
+COPY --from=build $PAYARA_PATH $PAYARA_PATH
+
+USER payara
+WORKDIR $PAYARA_PATH
+
+# Default payara ports to expose
+EXPOSE 8080 8443 6900
+
+ENTRYPOINT ["java", "-server", "-Xshare:auto", "-XX:+UseContainerSupport", "-XX:MaxRAMPercentage=60.0", "-XX:ThreadStackSize=256", "-XX:MaxMetaspaceSize=128m", "-XX:+UseShenandoahGC", "-XX:+AlwaysPreTouch", "-XX:+UseNUMA", "-XX:+UseStringDeduplication", "-jar", "/opt/payara/payara-micro.jar"]
+CMD ["--nocluster", "--disablephonehome", "--deploymentDir", "/opt/payara/deployments"]
